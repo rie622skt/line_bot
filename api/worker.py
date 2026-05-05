@@ -22,7 +22,7 @@ supabase = SupabaseClient()
 # LINE Push APIエンドポイント
 LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
 
-# 非同期処理用のヘルパー関数
+# 非同期処理用のヘルパー関数（履歴保存に使用）
 def run_async(func, *args):
     thread = threading.Thread(target=func, args=args)
     thread.daemon = True
@@ -32,27 +32,25 @@ def run_async(func, *args):
 def get_embedding(text):
     # テスト環境ではダミーのベクトルを返す
     if os.getenv('ENV') == 'test' or os.getenv('GEMINI_API_KEY') == 'test_key':
-        import numpy as np
-        return np.random.rand(768).tolist()
+        return [0.0] * 768
+    # モデル名を 004 に固定
     response = genai.embed_content(model='models/text-embedding-004', content=text)
     return response['embedding']
 
 # 類似チャット履歴の検索
 def search_similar_chats(line_user_id, embedding, limit=5):
     try:
-        # SupabaseのRPCを呼び出して類似履歴を検索
         result = supabase.rpc('search_similar_chats', {
             'user_id': line_user_id,
             'query_embedding': embedding,
             'match_count': limit
         }).execute()
-        
         return result.data
     except Exception as e:
         app.logger.error(f"Supabase search error: {str(e)}")
         return []
 
-# チャット履歴の保存（非同期）
+# チャット履歴の保存
 def store_chat_history_async(line_user_id, role, content, embedding=None):
     try:
         data = {
@@ -65,8 +63,8 @@ def store_chat_history_async(line_user_id, role, content, embedding=None):
     except Exception as e:
         app.logger.error(f"Supabase insert error: {str(e)}")
 
-# LINEメッセージの送信（非同期）
-def send_line_message_async(line_user_id, message):
+# LINEメッセージの送信
+def send_line_message(line_user_id, message):
     try:
         headers = {
             'Authorization': f'Bearer {os.getenv("LINE_ACCESS_TOKEN")}',
@@ -76,7 +74,9 @@ def send_line_message_async(line_user_id, message):
             'to': line_user_id,
             'messages': [{'type': 'text', 'text': message}]
         }
-        requests.post(LINE_PUSH_URL, headers=headers, json=data)
+        res = requests.post(LINE_PUSH_URL, headers=headers, json=data)
+        if res.status_code != 200:
+            app.logger.error(f"LINE API Error: {res.text}")
     except Exception as e:
         app.logger.error(f"LINE push error: {str(e)}")
 
@@ -92,12 +92,10 @@ def generate_system_prompt(character_setting, context_messages):
 """
     for msg in context_messages:
         prompt += f"{msg['role']}: {msg['content']}\n"
-    
     return prompt
 
 @app.route('/api/worker', methods=['POST'])
 def worker():
-    # 環境変数チェック
     if not os.getenv('GEMINI_API_KEY'):
         return jsonify({'error': 'GEMINI_API_KEY is not set'}), 500
     try:
@@ -108,44 +106,36 @@ def worker():
         if not line_user_id or not text:
             return jsonify({'error': 'Invalid payload'}), HTTPStatus.BAD_REQUEST
         
-        # ユーザーメッセージのベクトル化（並列処理）
+        # ユーザーメッセージのベクトル化
         user_embedding = get_embedding(text)
         
         # 類似チャット履歴の検索
         similar_chats = search_similar_chats(line_user_id, user_embedding)
         
-        # システムプロンプトの生成
+        # キャラクター設定
         character_setting = """
 名前: サクラ
-年齢: 18歳
-口調のルール:
-- 一人称: わたし
-- 二人称: 〇〇さん（相手の名前＋さん）
-- 語尾: です・ます調、時々「〜なの」「〜だよ」
-性格:
-- 好奇心旺盛で明るい
-- 相手の話を熱心に聞く
-- 趣味は読書と散歩
-- 少し天然ボケ気味
+性格: 好奇心旺盛で明るい、読書と散歩が趣味。
+口調: わたし、〇〇さん、です・ます調（時々「〜だよ」）。
 """
         system_prompt = generate_system_prompt(character_setting, similar_chats)
         
         # AI応答の生成
         full_prompt = f"{system_prompt}\n\n【直近のユーザーの発言】\n{text}"
         
-        # テスト環境ではダミーの応答を返す
-        if os.getenv('ENV') == 'test' or os.getenv('GEMINI_API_KEY') == 'test_key':
-            ai_response = f"こんにちは！「{text}」についてお話しするの、楽しみです！"
+        if os.getenv('ENV') == 'test':
+            ai_response = f"テスト応答: {text}"
         else:
             response = generation_model.generate_content(full_prompt)
-            ai_response = response.text
+            # マークダウン記号を除去して整形
+            ai_response = response.text.strip().replace('```', '')
         
-        # 非同期処理：ユーザーメッセージとAI応答の保存
+        # 保存は非同期で実行
         run_async(store_chat_history_async, line_user_id, 'user', text, user_embedding)
         run_async(store_chat_history_async, line_user_id, 'model', ai_response)
         
-        # 非同期処理：LINEへの応答送信
-        run_async(send_line_message_async, line_user_id, ai_response)
+        # LINE送信は同期処理で実行（Vercelの強制終了を防ぐ）
+        send_line_message(line_user_id, ai_response)
         
         return '', HTTPStatus.OK
     
@@ -158,5 +148,4 @@ def health_check():
     return 'Worker server is running', 200
 
 if __name__ == '__main__':
-    port = int(os.getenv('WORKER_PORT', '5001'))
-    app.run(port=port)
+    app.run(port=5001)
