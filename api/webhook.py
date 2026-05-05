@@ -72,9 +72,8 @@ def webhook():
                     # ワーカーエンドポイント
                     worker_url = f"{os.getenv('BASE_URL')}/api/worker"
                     
-                    # Vercelに登録した正しい地域のQStash URLを取得し、末尾の不要なスラッシュを削ってから結合
-                    qstash_base_url = os.getenv('QSTASH_URL').rstrip('/')
-                    publish_url = f"{qstash_base_url}/{worker_url}"
+                    # 強制的にUS-EAST-1（あなたの存在するリージョン）のサーバーを指定する
+                    publish_url = f"https://qstash-us-east-1.upstash.io/v2/publish/{worker_url}"
                     
                     response = requests.post(
                         publish_url,
