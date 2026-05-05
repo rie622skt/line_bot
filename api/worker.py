@@ -29,14 +29,25 @@ def run_async(func, *args):
     thread.start()
 
 # テキストのベクトル化
+# テキストのベクトル化
 def get_embedding(text):
-    # テスト環境ではダミーのベクトルを返す
-    if os.getenv('ENV') == 'test' or os.getenv('GEMINI_API_KEY') == 'test_key':
+    # テスト環境またはAPIキーが未設定の場合はダミーを返す
+    if os.getenv('ENV') == 'test' or not os.getenv('GEMINI_API_KEY'):
         return [0.0] * 768
-    # モデル名を 004 に固定
-    response = genai.embed_content(model='models/text-embedding-004', content=text)
-    return response['embedding']
-
+    
+    try:
+        # モデル名から 'models/' を外した形式も試す、あるいは最新の 'text-embedding-004' を指定
+        response = genai.embed_content(
+            model='models/text-embedding-004', # もしこれでダメなら 'text-embedding-004'
+            content=text,
+            task_type="retrieval_query" # 明示的にタスクタイプを指定
+        )
+        return response['embedding']
+    except Exception as e:
+        # 【重要】EmbeddingでコケてもAIの応答自体は止めないようにガード
+        app.logger.error(f"Embedding error (skipping): {str(e)}")
+        return [0.0] * 768 # エラー時は空のベクトルを返して次へ進ませる
+    
 # 類似チャット履歴の検索
 def search_similar_chats(line_user_id, embedding, limit=5):
     try:
