@@ -60,7 +60,7 @@ def webhook():
                     if response.status_code != 200:
                         app.logger.error(f"Direct worker error: {response.text}")
                 else:
-                    
+
                     # QStashにタスクをキューイング
                     qstash_token = os.getenv('QSTASH_TOKEN')
                     
@@ -72,8 +72,9 @@ def webhook():
                     # ワーカーエンドポイント
                     worker_url = f"{os.getenv('BASE_URL')}/api/worker"
                     
-                    # QStashの正式なAPI仕様に合わせてURLを結合する
-                    publish_url = f"https://qstash.upstash.io/v2/publish/{worker_url}"
+                    # Vercelに登録した正しい地域のQStash URLを取得し、末尾の不要なスラッシュを削ってから結合
+                    qstash_base_url = os.getenv('QSTASH_URL').rstrip('/')
+                    publish_url = f"{qstash_base_url}/{worker_url}"
                     
                     response = requests.post(
                         publish_url,
