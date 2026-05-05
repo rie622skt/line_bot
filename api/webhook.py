@@ -70,7 +70,8 @@ def webhook():
                     }
                     
                     # ワーカーエンドポイントにリクエスト
-                    worker_url = f"{os.getenv('BASE_URL')}/api/worker"                    response = requests.post(
+                    worker_url = f"{os.getenv('BASE_URL')}/api/worker"                    
+                    response = requests.post(
                         qstash_url,
                         headers=headers,
                         json={
