@@ -61,8 +61,8 @@ def webhook():
                         app.logger.error(f"Direct worker error: {response.text}")
                 else:
                     # QStashにタスクをキューイング
-                    qstash_url = os.getenv('UPSTASH_QSTASH_URL')
-                    qstash_token = os.getenv('UPSTASH_QSTASH_TOKEN')
+                    qstash_url = os.getenv('QSTASH_URL')
+                    qstash_token = os.getenv('QSTASH_TOKEN')
                     
                     headers = {
                         'Authorization': f'Bearer {qstash_token}',
@@ -70,8 +70,7 @@ def webhook():
                     }
                     
                     # ワーカーエンドポイントにリクエスト
-                    worker_url = f"{os.getenv('VERCEL_URL')}/api/worker"
-                    response = requests.post(
+                    worker_url = f"{os.getenv('BASE_URL')}/api/worker"                    response = requests.post(
                         qstash_url,
                         headers=headers,
                         json={
