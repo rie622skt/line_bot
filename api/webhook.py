@@ -69,10 +69,10 @@ def webhook():
                         'Content-Type': 'application/json'
                     }
                     
-                    # ワーカーエンドポイント
-                    worker_url = f"{os.getenv('BASE_URL')}/api/worker"
+                    # 環境変数を使わず、直接あなたのVercelのURLを書き込む（確実！）
+                    worker_url = "https://line-bot-cwlc.vercel.app/api/worker"
                     
-                    # 強制的にUS-EAST-1（あなたの存在するリージョン）のサーバーを指定する
+                    # 強制的にUS-EAST-1のサーバーを指定する
                     publish_url = f"https://qstash-us-east-1.upstash.io/v2/publish/{worker_url}"
                     
                     response = requests.post(
