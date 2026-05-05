@@ -60,8 +60,8 @@ def webhook():
                     if response.status_code != 200:
                         app.logger.error(f"Direct worker error: {response.text}")
                 else:
+                    
                     # QStashにタスクをキューイング
-                    qstash_url = os.getenv('QSTASH_URL')
                     qstash_token = os.getenv('QSTASH_TOKEN')
                     
                     headers = {
@@ -69,17 +69,18 @@ def webhook():
                         'Content-Type': 'application/json'
                     }
                     
-                    # ワーカーエンドポイントにリクエスト
-                    worker_url = f"{os.getenv('BASE_URL')}/api/worker"                    
-                    response = requests.post(
-                        qstash_url,
-                        headers=headers,
-                        json={
-                            'url': worker_url,
-                            'body': json.dumps(data)
-                        }
-                    )
+                    # ワーカーエンドポイント
+                    worker_url = f"{os.getenv('BASE_URL')}/api/worker"
                     
+                    # QStashの正式なAPI仕様に合わせてURLを結合する
+                    publish_url = f"https://qstash.upstash.io/v2/publish/{worker_url}"
+                    
+                    response = requests.post(
+                        publish_url,
+                        headers=headers,
+                        json=data
+                    )
+
                     if response.status_code != 200:
                         app.logger.error(f"QStash error: {response.text}")
         
