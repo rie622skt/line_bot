@@ -38,10 +38,10 @@ def get_embedding(text):
     try:
         # モデル名から 'models/' を外した形式も試す、あるいは最新の 'text-embedding-004' を指定
         response = genai.embed_content(
-                    model='models/gemini-embedding-2',
-                    content=text,
-                    task_type="retrieval_query"
-                )
+            model='models/gemini-embedding-001',
+            content=text,
+            task_type="retrieval_query"
+        )        
         return response['embedding']
     except Exception as e:
         # 【重要】EmbeddingでコケてもAIの応答自体は止めないようにガード
@@ -78,7 +78,7 @@ def store_chat_history_async(line_user_id, role, content, embedding=None):
 def send_line_message(line_user_id, message):
     try:
         headers = {
-            'Authorization': f'Bearer {os.getenv("LINE_ACCESS_TOKEN")}',
+            'Authorization': f'Bearer {os.getenv("LINE_CHANNEL_ACCESS_TOKEN")}',
             'Content-Type': 'application/json'
         }
         data = {
