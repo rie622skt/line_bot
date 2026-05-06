@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 # Gemini APIの初期化
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-generation_model = genai.GenerativeModel('gemini-2.5-flash-lite')
+generation_model = genai.GenerativeModel('gemini-2.0-flash-lite')
 
 # Supabaseクライアントの初期化
 supabase = SupabaseClient()
@@ -47,14 +47,20 @@ def get_embedding(text):
         return [0.0] * 768
     
 # 直近の会話履歴を取得
+# 直近の会話履歴を取得
 def get_recent_chats(line_user_id, limit=6):
     try:
-        result = supabase.get_recent_chats(line_user_id, limit)
-        return result
+        result = supabase.table('chat_histories')\
+            .select('role, content')\
+            .eq('line_user_id', line_user_id)\
+            .order('created_at', desc=True)\
+            .limit(limit)\
+            .execute()
+        return list(reversed(result.data))
     except Exception as e:
         app.logger.error(f"Recent chats error: {str(e)}")
         return []
-
+    
 # 類似チャット履歴の検索
 def search_similar_chats(line_user_id, embedding, limit=5):
     try:
