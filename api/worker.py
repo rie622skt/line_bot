@@ -19,8 +19,8 @@ generation_model = genai.GenerativeModel('gemini-2.5-flash-lite')
 # Supabaseクライアントの初期化
 supabase = SupabaseClient()
 
-# LINE Push APIエンドポイント
-LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
+# LINE Reply APIエンドポイント
+LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply"
 
 # 非同期処理用のヘルパー関数（履歴保存に使用）
 def run_async(func, *args):
@@ -36,17 +36,15 @@ def get_embedding(text):
         return [0.0] * 768
     
     try:
-        # モデル名から 'models/' を外した形式も試す、あるいは最新の 'text-embedding-004' を指定
         response = genai.embed_content(
             model='models/gemini-embedding-001',
             content=text,
             task_type="retrieval_query"
-        )        
+        )
         return response['embedding']
     except Exception as e:
-        # 【重要】EmbeddingでコケてもAIの応答自体は止めないようにガード
         app.logger.error(f"Embedding error (skipping): {str(e)}")
-        return [0.0] * 768 # エラー時は空のベクトルを返して次へ進ませる
+        return [0.0] * 768
     
 # 類似チャット履歴の検索
 def search_similar_chats(line_user_id, embedding, limit=5):
@@ -74,22 +72,22 @@ def store_chat_history_async(line_user_id, role, content, embedding=None):
     except Exception as e:
         app.logger.error(f"Supabase insert error: {str(e)}")
 
-# LINEメッセージの送信
-def send_line_message(line_user_id, message):
+# LINEメッセージの送信（Reply API）
+def send_line_message(reply_token, message):
     try:
         headers = {
             'Authorization': f'Bearer {os.getenv("LINE_CHANNEL_ACCESS_TOKEN")}',
             'Content-Type': 'application/json'
         }
         data = {
-            'to': line_user_id,
+            'replyToken': reply_token,
             'messages': [{'type': 'text', 'text': message}]
         }
-        res = requests.post(LINE_PUSH_URL, headers=headers, json=data)
+        res = requests.post(LINE_REPLY_URL, headers=headers, json=data)
         if res.status_code != 200:
             app.logger.error(f"LINE API Error: {res.text}")
     except Exception as e:
-        app.logger.error(f"LINE push error: {str(e)}")
+        app.logger.error(f"LINE reply error: {str(e)}")
 
 # システムプロンプトの生成
 def generate_system_prompt(character_setting, context_messages):
@@ -113,6 +111,7 @@ def worker():
         data = request.get_json()
         line_user_id = data.get('line_user_id')
         text = data.get('text')
+        reply_token = data.get('reply_token', '')
         
         if not line_user_id or not text:
             return jsonify({'error': 'Invalid payload'}), HTTPStatus.BAD_REQUEST
@@ -137,16 +136,22 @@ def worker():
         if os.getenv('ENV') == 'test':
             ai_response = f"テスト応答: {text}"
         else:
-            response = generation_model.generate_content(full_prompt)
-            # マークダウン記号を除去して整形
-            ai_response = response.text.strip().replace('```', '')
+            try:
+                response = generation_model.generate_content(full_prompt)
+                ai_response = response.text.strip().replace('```', '')
+            except Exception as e:
+                app.logger.error(f"Gemini generation error: {str(e)}")
+                ai_response = f"ごめんなさい、応答の生成中にエラーが発生しました。"
         
         # 保存は非同期で実行
         run_async(store_chat_history_async, line_user_id, 'user', text, user_embedding)
         run_async(store_chat_history_async, line_user_id, 'model', ai_response)
         
         # LINE送信は同期処理で実行（Vercelの強制終了を防ぐ）
-        send_line_message(line_user_id, ai_response)
+        if reply_token:
+            send_line_message(reply_token, ai_response)
+        else:
+            app.logger.error("No reply_token available, cannot send reply")
         
         return '', HTTPStatus.OK
     

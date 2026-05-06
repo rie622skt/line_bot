@@ -47,10 +47,12 @@ def webhook():
             if event['type'] == 'message' and event['message']['type'] == 'text':
                 user_id = event['source']['userId']
                 text = event['message']['text']
+                reply_token = event.get('replyToken', '')
                 
                 data = {
                     'line_user_id': user_id,
-                    'text': text
+                    'text': text,
+                    'reply_token': reply_token
                 }
                 
                 # テスト環境ではWorkerを直接呼び出す
