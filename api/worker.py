@@ -1,3 +1,4 @@
+# Force Deploy 2026-05-06
 import os
 import json
 import threading
@@ -19,7 +20,7 @@ generation_model = genai.GenerativeModel('gemini-2.0-flash-lite')
 # Supabaseクライアントの初期化
 supabase = SupabaseClient()
 
-# LINE Reply APIエンドポイント2
+# LINE Reply APIエンドポイント
 LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply"
 
 # 非同期処理用のヘルパー関数（履歴保存に使用）
