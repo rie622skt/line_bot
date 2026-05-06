@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 # Gemini APIの初期化
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-generation_model = genai.GenerativeModel('gemini-1.5-flash')
+generation_model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 # Supabaseクライアントの初期化
 supabase = SupabaseClient()
