@@ -19,7 +19,7 @@ generation_model = genai.GenerativeModel('gemini-2.0-flash-lite')
 # Supabaseクライアントの初期化
 supabase = SupabaseClient()
 
-# LINE Reply APIエンドポイント
+# LINE Reply APIエンドポイント2
 LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply"
 
 # 非同期処理用のヘルパー関数（履歴保存に使用）
