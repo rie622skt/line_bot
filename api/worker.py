@@ -46,6 +46,15 @@ def get_embedding(text):
         app.logger.error(f"Embedding error (skipping): {str(e)}")
         return [0.0] * 768
     
+# 直近の会話履歴を取得
+def get_recent_chats(line_user_id, limit=6):
+    try:
+        result = supabase.get_recent_chats(line_user_id, limit)
+        return result
+    except Exception as e:
+        app.logger.error(f"Recent chats error: {str(e)}")
+        return []
+
 # 類似チャット履歴の検索
 def search_similar_chats(line_user_id, embedding, limit=5):
     try:
@@ -90,17 +99,22 @@ def send_line_message(reply_token, message):
         app.logger.error(f"LINE reply error: {str(e)}")
 
 # システムプロンプトの生成
-def generate_system_prompt(character_setting, context_messages):
+def generate_system_prompt(character_setting, similar_chats, recent_chats):
     prompt = f"""【絶対命令】
 あなたは以下のキャラクター設定に従い、ユーザーと対話を行ってください。AIやアシスタントとしての素振りは一切禁止します。
 
 【キャラクター設定】
 {character_setting}
 
-【過去の関連する記憶（コンテキスト）】
+【過去の関連する記憶（類似検索による関連会話）】
 """
-    for msg in context_messages:
+    for msg in similar_chats:
         prompt += f"{msg['role']}: {msg['content']}\n"
+    
+    prompt += "\n【ここまでの会話の流れ（直近の履歴）】\n"
+    for msg in recent_chats:
+        prompt += f"{msg['role']}: {msg['content']}\n"
+    
     return prompt
 
 @app.route('/api/worker', methods=['POST'])
@@ -122,16 +136,19 @@ def worker():
         # 類似チャット履歴の検索
         similar_chats = search_similar_chats(line_user_id, user_embedding)
         
+        # 直近の会話履歴を取得
+        recent_chats = get_recent_chats(line_user_id)
+        
         # キャラクター設定
         character_setting = """
 名前: サクラ
 性格: 好奇心旺盛で明るい、読書と散歩が趣味。
 口調: わたし、〇〇さん、です・ます調（時々「〜だよ」）。
 """
-        system_prompt = generate_system_prompt(character_setting, similar_chats)
+        system_prompt = generate_system_prompt(character_setting, similar_chats, recent_chats)
         
-        # AI応答の生成
-        full_prompt = f"{system_prompt}\n\n【直近のユーザーの発言】\n{text}"
+        # AI応答の生成（自然なチャット形式）
+        full_prompt = f"{system_prompt}\n\n【直近のユーザーの発言】\nuser: {text}\nmodel: "
         
         if os.getenv('ENV') == 'test':
             ai_response = f"テスト応答: {text}"

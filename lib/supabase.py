@@ -31,6 +31,30 @@ class SupabaseClient:
         return create_client(url, key)
     
     # ---- SQLiteモック用メソッド ----
+    def get_recent_chats(self, user_id, limit=6):
+        """直近の会話履歴を時系列順（新しい順）で取得"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("""
+            SELECT role, content, created_at
+            FROM chat_histories
+            WHERE line_user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """, (user_id, limit))
+            results = []
+            for row in cursor.fetchall():
+                results.append({
+                    'role': row[0],
+                    'content': row[1],
+                    'created_at': row[2]
+                })
+            results.reverse()  # 古い順に並び替え
+            return results
+        except Exception as e:
+            print(f"直近履歴取得エラー: {str(e)}")
+            return []
+
     def rpc(self, func_name, params):
         if func_name == 'search_similar_chats':
             embedding = params['query_embedding']
