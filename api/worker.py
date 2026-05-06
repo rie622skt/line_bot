@@ -1,4 +1,4 @@
-# Force Deploy 2026-05-06
+# FINAL_PATCH_CONFIRMED_20260506_2145
 import os
 import json
 import threading
@@ -126,6 +126,7 @@ def generate_system_prompt(character_setting, similar_chats, recent_chats):
 
 @app.route('/api/worker', methods=['POST'])
 def worker():
+    print("--- NEW SYSTEM ACTIVATED ---")
     if not os.getenv('GEMINI_API_KEY'):
         return jsonify({'error': 'GEMINI_API_KEY is not set'}), 500
     try:
