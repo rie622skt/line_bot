@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 # Gemini APIの初期化
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-generation_model = genai.GenerativeModel('gemini-pro')
+generation_model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Supabaseクライアントの初期化
 supabase = SupabaseClient()
@@ -38,7 +38,7 @@ def get_embedding(text):
     try:
         # モデル名から 'models/' を外した形式も試す、あるいは最新の 'text-embedding-004' を指定
         response = genai.embed_content(
-                    model='models/embedding-001',
+                    model='models/text-embedding-004',
                     content=text,
                     task_type="retrieval_query"
                 )
