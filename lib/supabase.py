@@ -2,12 +2,18 @@ import os
 import sqlite3
 import numpy as np
 import json
+from datetime import datetime, timezone
 
 class RpcResult:
     def __init__(self, data):
         self.data = data
     def execute(self):
         return self
+
+class QueryResult:
+    """ビルダーパターンの execute() 結果をラップする"""
+    def __init__(self, data):
+        self.data = data
 
 class SupabaseClient:
     """
@@ -20,6 +26,17 @@ class SupabaseClient:
         if os.getenv('ENV') == 'test' or 'test' in key or 'sb_secret' in key:
             instance = super().__new__(cls)
             instance.conn = sqlite3.connect('chat_histories.db')
+            # ビルダーパターン用の属性
+            instance._table_name = None
+            instance._select_columns = None
+            instance._eq_field = None
+            instance._eq_value = None
+            instance._order_field = None
+            instance._order_desc = False
+            instance._limit_count = None
+            instance._upsert_data = None
+            # user_configs のインメモリストレージ
+            instance._user_configs = {}
             return instance
         
         from supabase import create_client
@@ -94,7 +111,38 @@ class SupabaseClient:
             print(f"検索エラー: {str(e)}")
             return []
     
+    # ---- ビルダーパターンメソッド（user_configs 対応） ----
     def table(self, table_name):
+        self._table_name = table_name
+        self._select_columns = None
+        self._eq_field = None
+        self._eq_value = None
+        self._order_field = None
+        self._order_desc = False
+        self._limit_count = None
+        self._upsert_data = None
+        return self
+    
+    def select(self, columns):
+        self._select_columns = columns
+        return self
+    
+    def eq(self, field, value):
+        self._eq_field = field
+        self._eq_value = value
+        return self
+    
+    def order(self, field, desc=False):
+        self._order_field = field
+        self._order_desc = desc
+        return self
+    
+    def limit(self, count):
+        self._limit_count = count
+        return self
+    
+    def upsert(self, data):
+        self._upsert_data = data
         return self
     
     def insert(self, data):
@@ -116,4 +164,23 @@ class SupabaseClient:
         return self
     
     def execute(self):
+        # user_configs テーブルの操作
+        if self._table_name == 'user_configs':
+            if self._upsert_data:
+                # upsert: 既存レコードがあれば更新、なければ挿入
+                user_id = self._upsert_data.get('line_user_id')
+                existing = self._user_configs.get(user_id, {})
+                existing.update(self._upsert_data)
+                existing['updated_at'] = datetime.now(timezone.utc).isoformat()
+                self._user_configs[user_id] = existing
+                return QueryResult([existing])
+            elif self._eq_field == 'line_user_id':
+                # select ... eq('line_user_id', ...)
+                config = self._user_configs.get(self._eq_value, {})
+                if config:
+                    return QueryResult([config])
+                return QueryResult([])
+            return QueryResult([])
+        
+        # chat_histories など他のテーブルは従来通り
         return self
